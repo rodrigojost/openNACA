@@ -21,22 +21,31 @@ def main():
         case_dir = f"openfoam_naca_{code}"
         print(f"\n--- Running simulation for NACA {code} ---")
         
-        setup_and_run_simulation(points=best_points, airfoil_code=code, end_time=end_time, case_dir=case_dir)
-        
-        time, cd, cl = parse_force_coeffs(case_dir=case_dir)
-        
-        final_cd = cd[-1]
-        final_cl = cl[-1]
-        
-        steady_cd_list.append(final_cd)
-        steady_cl_list.append(final_cl)
-        
-        print(f"Results for NACA {code} -> Cd: {final_cd:.4f}, Cl: {final_cl:.4f}")
-        
+        try:
+            setup_and_run_simulation(points=best_points, airfoil_code=code, end_time=end_time, case_dir=case_dir)
+            
+            time, cd, cl = parse_force_coeffs(case_dir=case_dir)
+            
+            final_cd = cd[-1]
+            final_cl = cl[-1]
+            
+            steady_cd_list.append(final_cd)
+            steady_cl_list.append(final_cl)
+            
+            print(f"Results for NACA {code} -> Cd: {final_cd:.4f}, Cl: {final_cl:.4f}")
+        except Exception as e:
+            print(f"Simulation for NACA {code} failed (likely a meshing error). Skipping.")
+            camber_values[camber_values.index(m)] = None # Mark as failed
+            
+    # Clean up failed cambers from the plot lists
+    steady_cd_list = [cd for cd in steady_cd_list]
+    steady_cl_list = [cl for cl in steady_cl_list]
+    valid_camber_values = [m for m in camber_values if m is not None]
+    
     # Plotting Camber Study
     plt.figure(figsize=(10, 5))
-    plt.plot(camber_values, steady_cl_list, 'o-', color='blue', label='Lift Coefficient (Cl)')
-    plt.plot(camber_values, steady_cd_list, 's-', color='red', label='Drag Coefficient (Cd)')
+    plt.plot(valid_camber_values, steady_cl_list, 'o-', color='blue', label='Lift Coefficient (Cl)')
+    plt.plot(valid_camber_values, steady_cd_list, 's-', color='red', label='Drag Coefficient (Cd)')
     plt.title("Impact of Camber on Lift and Drag Coefficients")
     plt.xlabel("Maximum Camber (%)")
     plt.ylabel("Steady-State Coefficient Value")
