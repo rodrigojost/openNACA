@@ -2,5 +2,4 @@ __pycache__/
 *.pyc
 openfoam_naca/
 *.dat
-*.png
 .ipynb_checkpoints/
