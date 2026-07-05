@@ -3,3 +3,17 @@ __pycache__/
 openfoam_naca/
 *.dat
 .ipynb_checkpoints/
+camber_0412/
+camber_1412/
+camber_2412/
+camber_3412/
+camber_4412/
+camber_5412/
+camber_6412/
+camber_7412/
+camber_8412/
+convergence_2412_100pts/
+convergence_2412_200pts/
+convergence_2412_20pts/
+convergence_2412_50pts/
+
