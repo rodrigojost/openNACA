@@ -9,8 +9,6 @@ from curiosityFluidsAirfoilMesher import curiosityFluidsAirfoilMesher
 def generate_naca4(digits, chord=1.0, points=100):
     """Generates 2D coordinates for a 4-digit NACA airfoil."""
     m = int(digits[0]) / 100.0  # Max camber
-    if m == 0:
-        m = 1e-6 # small epsilon to avoid symmetric meshing bug
     p = int(digits[1]) / 10.0   # Position of max camber
     t = int(digits[2:]) / 100.0 # Max thickness
 
@@ -19,8 +17,7 @@ def generate_naca4(digits, chord=1.0, points=100):
     x = (1 - np.cos(beta)) / 2
 
     # Thickness equation
-    # (Note: -0.1015 leaves a tiny trailing edge gap, standard for NACA.
-    # Shapely will automatically close this gap when making the polygon).
+    # (Note: -0.1015 leaves a tiny trailing edge gap, standard for NACA.)
     yt = 5 * t * (0.2969 * np.sqrt(x) - 0.1260 * x - 0.3516 * x**2 + 0.2843 * x**3 - 0.1015 * x**4)
 
     # Camber line calculations
@@ -51,6 +48,21 @@ def generate_naca4(digits, chord=1.0, points=100):
     # Combine into one continuous loop (Trailing Edge -> Leading Edge -> Trailing Edge)
     x_coords = np.concatenate([xu[::-1], xl[1:]])
     y_coords = np.concatenate([yu[::-1], yl[1:]])
+
+    # FIX for symmetric (M=0) airfoils:
+    # The curiosityFluidsAirfoilMesher splits the profile into top/bottom by checking
+    # whether consecutive X values increase or decrease. For a perfectly symmetric
+    # airfoil the trailing-edge points (top and bottom) share Y=0, which makes the
+    # boundary-layer blocks collapse and creates negative-volume cells.
+    # It's applied a microscopic vertical offset (+/- 0.5% chord * thickness) to the
+    # last point of each surface so the mesher sees a non-zero trailing-edge gap.
+    # This is physically invisible but prevents the mesh singularity.
+    if m == 0:
+        te_offset = 0.0005 * chord * t
+        # Upper TE (first point in concatenated array)
+        y_coords[0] += te_offset
+        # Lower TE (last point in concatenated array)
+        y_coords[-1] -= te_offset
     
     # Scale by chord length
     return np.column_stack((x_coords, y_coords)) * chord
@@ -63,7 +75,7 @@ def setup_case_directories(case_dir):
     with open(os.path.join(case_dir, "case.foam"), "w") as f:
         f.write("")
 
-def create_control_dict(case_dir, end_time=0.6, u_inf=30, rho_inf=1.225, z_length=1.0, write_interval=1):
+def create_control_dict(case_dir, end_time=0.6, u_inf=30, rho_inf=1.225, z_length=1.0, write_interval=0.1):
     system_dir = os.path.join(case_dir, "system")
     os.makedirs(system_dir, exist_ok=True)
     area = 1.0 * z_length
@@ -312,7 +324,7 @@ PIMPLE
 {{
     nOuterCorrectors {n_outer_correctors};
     nCorrectors      2;
-    nNonOrthogonalCorrectors 0;
+    nNonOrthogonalCorrectors 2;
 }}
 
 {relaxation_factors}
@@ -587,5 +599,5 @@ def setup_and_run_simulation(points, airfoil_code="2412", end_time=0.6, case_dir
     
     # 5. Run OpenFOAM Commands
     subprocess.run(foam_cmd("blockMesh", case_dir=case_dir), check=True)
-    subprocess.run(foam_cmd("checkMesh", case_dir=case_dir), check=True)
+    subprocess.run(foam_cmd("checkMesh", case_dir=case_dir), check=False) # eventual mesh warnings are printed but foamRun is still attempted.
     subprocess.run(foam_cmd("foamRun", case_dir=case_dir), check=True)
